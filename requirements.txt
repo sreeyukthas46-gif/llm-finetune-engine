@@ -1,0 +1,18 @@
+# Core dependencies
+torch>=2.0.0
+transformers>=4.30.0
+numpy>=1.24.0
+pandas>=1.5.0
+
+# Training utilities
+accelerate>=0.20.0
+peft>=0.4.0
+
+# Data processing
+datasets>=2.12.0
+tokenizers>=0.13.0
+
+# Utilities
+tqdm>=4.65.0
+pyyaml>=6.0
+python-dotenv>=1.0.0
