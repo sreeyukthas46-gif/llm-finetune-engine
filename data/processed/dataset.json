@@ -1,0 +1,52 @@
+[
+  {
+    "instruction": "Explain what a transformer model is.",
+    "input": "",
+    "output": "A transformer model is a deep learning architecture introduced in the paper 'Attention is All You Need' (2017). It relies entirely on self-attention mechanisms to draw global dependencies between input and output, discarding recurrence and convolutions. Transformers are the foundation for large language models like GPT and BERT."
+  },
+  {
+    "instruction": "Summarize the following paragraph.",
+    "input": "The quick brown fox jumps over the lazy dog. This sentence is often used as a pangram in typography because it contains every letter of the English alphabet at least once.",
+    "output": "The sentence 'The quick brown fox jumps over the lazy dog' is a well-known pangram used in typography because it includes every letter of the English alphabet."
+  },
+  {
+    "instruction": "Translate the following English sentence to French.",
+    "input": "Good morning, how are you?",
+    "output": "Bonjour, comment allez-vous ?"
+  },
+  {
+    "instruction": "Write a Python function that returns the factorial of a number.",
+    "input": "",
+    "output": "def factorial(n): if n == 0 or n == 1: return 1 return n * factorial(n - 1)"
+  },
+  {
+    "instruction": "What is the capital of Japan?",
+    "input": "",
+    "output": "The capital of Japan is Tokyo."
+  },
+  {
+    "instruction": "Classify the sentiment of the following review.",
+    "input": "The product arrived on time and works perfectly. I am very happy with my purchase.",
+    "output": "Positive"
+  },
+  {
+    "instruction": "Explain the difference between supervised and unsupervised learning.",
+    "input": "",
+    "output": "Supervised learning uses labeled training data where the model learns a mapping from inputs to known outputs. Unsupervised learning finds hidden patterns or structure in unlabeled data without predefined correct answers."
+  },
+  {
+    "instruction": "Convert the following temperature from Celsius to Fahrenheit.",
+    "input": "100 degrees Celsius",
+    "output": "100 degrees Celsius is equal to 212 degrees Fahrenheit. The formula is F = (C × 9/5) + 32."
+  },
+  {
+    "instruction": "List three benefits of regular exercise.",
+    "input": "",
+    "output": "1. Improves cardiovascular health and reduces the risk of heart disease. 2. Boosts mental health by reducing symptoms of depression and anxiety. 3. Helps maintain a healthy weight and improves metabolism."
+  },
+  {
+    "instruction": "Correct the grammar in the following sentence.",
+    "input": "She don't know nothing about the new policy.",
+    "output": "She doesn't know anything about the new policy."
+  }
+]
