@@ -435,10 +435,11 @@ class Trainer:
             self.model = self.model.to(self.device)
         
         self.model.train()
-        
+
+        epoch_loss = 0.0
         for epoch in range(self.config.num_epochs):
             logger.info(f"Epoch {epoch + 1}/{self.config.num_epochs}")
-            
+
             epoch_loss = self._train_epoch(epoch)
             logger.info(f"Epoch {epoch + 1} - Average Loss: {epoch_loss:.4f}")
             
@@ -471,7 +472,7 @@ class Trainer:
             "num_epochs": self.config.num_epochs,
             "total_steps": self.global_step,
             "best_eval_loss": self.best_eval_loss,
-            "final_train_loss": epoch_loss if epoch is not None else None,
+            "final_train_loss": epoch_loss,
         }
         
         return training_results, self.metrics
@@ -497,33 +498,33 @@ class Trainer:
         
         for step, batch in enumerate(progress_bar):
             batch = self._prepare_batch(batch)
-            
+
             # Forward pass
             if self.accelerator is not None:
                 with self.accelerator.accumulate(self.model):
                     outputs = self.model(**batch)
                     loss = self._compute_loss(outputs, batch)
-                    
+
                     self.accelerator.backward(loss)
-                    
+
                     if self.accelerator.sync_gradients:
                         self.accelerator.clip_grad_norm_(
                             self.model.parameters(), self.config.max_grad_norm
                         )
-                    
-                    if self.optimizer is not None:
-                        self.optimizer.step()
-                    if self.lr_scheduler is not None:
-                        self.lr_scheduler.step()
-                    if self.optimizer is not None:
-                        self.optimizer.zero_grad()
+                        if self.optimizer is not None:
+                            self.optimizer.step()
+                        if self.lr_scheduler is not None:
+                            self.lr_scheduler.step()
+                        if self.optimizer is not None:
+                            self.optimizer.zero_grad()
+                        self.global_step += 1
             else:
                 outputs = self.model(**batch)
                 loss = self._compute_loss(outputs, batch)
-                
-                loss = loss / self.config.gradient_accumulation_steps
-                loss.backward()
-                
+
+                scaled_loss = loss / self.config.gradient_accumulation_steps
+                scaled_loss.backward()
+
                 if (step + 1) % self.config.gradient_accumulation_steps == 0:
                     torch.nn.utils.clip_grad_norm_(
                         self.model.parameters(), self.config.max_grad_norm
@@ -535,12 +536,14 @@ class Trainer:
                     if self.optimizer is not None:
                         self.optimizer.zero_grad()
                     self.global_step += 1
-            
-            # Logging
-            epoch_loss += loss.item() if isinstance(loss, torch.Tensor) else loss
+
+            # Accumulate loss (use unscaled value for logging)
+            batch_loss = loss.item() if isinstance(loss, torch.Tensor) else float(loss)
+            epoch_loss += batch_loss
             num_batches += 1
-            
-            if self.global_step % self.config.logging_steps == 0:
+
+            # Logging
+            if self.global_step > 0 and self.global_step % self.config.logging_steps == 0:
                 current_lr = self.optimizer.param_groups[0]["lr"] if self.optimizer is not None else 0.0
                 self.metrics.log_learning_rate(current_lr)
                 avg_loss = epoch_loss / num_batches
@@ -548,9 +551,38 @@ class Trainer:
                 logger.info(
                     f"Step {self.global_step}: Loss = {avg_loss:.4f}, LR = {current_lr:.2e}"
                 )
-            
+
+            # Step-based evaluation
+            if (
+                self.config.eval_steps > 0
+                and self.eval_dataloader is not None
+                and self.global_step > 0
+                and self.global_step % self.config.eval_steps == 0
+            ):
+                eval_loss = self._evaluate()
+                logger.info(f"Step {self.global_step} - Eval Loss: {eval_loss:.4f}")
+                if eval_loss < self.best_eval_loss:
+                    self.best_eval_loss = eval_loss
+                    self._save_checkpoint(
+                        checkpoint_dir=os.path.join(self.config.output_dir, "best_model"),
+                        is_best=True,
+                    )
+                self.model.train()
+
+            # Step-based checkpointing
+            if (
+                self.config.save_steps > 0
+                and self.global_step > 0
+                and self.global_step % self.config.save_steps == 0
+            ):
+                ckpt_dir = os.path.join(
+                    self.config.output_dir, f"checkpoint-{self.global_step}"
+                )
+                self._save_checkpoint(checkpoint_dir=ckpt_dir)
+                self._rotate_checkpoints()
+
             progress_bar.set_postfix({"loss": epoch_loss / num_batches})
-        
+
         return epoch_loss / num_batches if num_batches > 0 else 0.0
 
     def _evaluate(self) -> float:
@@ -639,6 +671,30 @@ class Trainer:
         
         checkpoint_type = "best" if is_best else "checkpoint"
         logger.info(f"{checkpoint_type.capitalize()} saved to {checkpoint_dir}")
+
+    def _rotate_checkpoints(self) -> None:
+        """
+        Enforce save_total_limit by removing the oldest step checkpoints.
+        Only affects directories named 'checkpoint-<step>'; best_model/final_model are kept.
+        """
+        if self.config.save_total_limit <= 0:
+            return
+
+        output_path = Path(self.config.output_dir)
+        step_checkpoints = sorted(
+            [
+                d
+                for d in output_path.iterdir()
+                if d.is_dir() and d.name.startswith("checkpoint-")
+            ],
+            key=lambda d: int(d.name.split("-")[1]),
+        )
+
+        checkpoints_to_delete = step_checkpoints[: max(0, len(step_checkpoints) - self.config.save_total_limit)]
+        for ckpt in checkpoints_to_delete:
+            import shutil
+            shutil.rmtree(ckpt)
+            logger.info(f"Removed old checkpoint: {ckpt}")
 
     def load_checkpoint(self, checkpoint_dir: str) -> None:
         """
